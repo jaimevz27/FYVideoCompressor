@@ -101,6 +101,10 @@ public class FYVideoCompressor {
         ///  Default is nil.
         public var outputPath: URL?
         
+        /// Custom Video Settings
+        /// Default is nil
+        public var settings: [String: Any]?
+        
         
         public init() {
             self.videoBitrate = 1000_000
@@ -111,6 +115,7 @@ public class FYVideoCompressor {
             self.fileType = .mp4
             self.scale = nil
             self.outputPath = nil
+            self.settings = nil
         }
         
         public init(videoBitrate: Int = 1000_000,
@@ -119,6 +124,7 @@ public class FYVideoCompressor {
                     audioSampleRate: Int = 44100,
                     audioBitrate: Int = 128_000,
                     fileType: AVFileType = .mp4,
+                    settings: [String: Any]? = nil,
                     scale: CGSize? = nil,
                     outputPath: URL? = nil) {
             self.videoBitrate = videoBitrate
@@ -129,6 +135,7 @@ public class FYVideoCompressor {
             self.fileType = fileType
             self.scale = scale
             self.outputPath = outputPath
+            self.settings = settings
         }
     }
     
@@ -254,9 +261,22 @@ public class FYVideoCompressor {
         }
         
         let targetSize = calculateSizeWithScale(config.scale, originalSize: videoTrack.naturalSize)
-        let videoSettings = createVideoSettingsWithBitrate(targetVideoBitrate,
+        
+        var inputSettings = [String: Any]()
+        
+        if let customConfig = config.settings {
+            inputSettings = customConfig
+            inputSettings[AVVideoWidthKey] = targetSize.width
+            inputSettings[AVVideoHeightKey] = targetSize.height
+            inputSettings[AVVideoAverageBitRateKey] = targetVideoBitrate
+            inputSettings[AVVideoMaxKeyFrameIntervalKey] = config.videomaxKeyFrameInterval
+        } else {
+            inputSettings = createVideoSettingsWithBitrate(targetVideoBitrate,
                                                            maxKeyFrameInterval: config.videomaxKeyFrameInterval,
                                                            size: targetSize)
+        }
+
+        let videoSettings = inputSettings
         
         var audioTrack: AVAssetTrack?
         var audioSettings: [String: Any]?
