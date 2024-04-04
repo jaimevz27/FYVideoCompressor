@@ -268,13 +268,29 @@ public class FYVideoCompressor {
             inputSettings = customConfig
             inputSettings[AVVideoWidthKey] = targetSize.width
             inputSettings[AVVideoHeightKey] = targetSize.height
-            inputSettings[AVVideoAverageBitRateKey] = targetVideoBitrate
-            inputSettings[AVVideoMaxKeyFrameIntervalKey] = config.videomaxKeyFrameInterval
+            
+            if var videoCompresionSettings = inputSettings[AVVideoCompressionPropertiesKey] as? [String: Any] {
+                videoCompresionSettings[AVVideoAverageBitRateKey] = targetVideoBitrate
+                videoCompresionSettings[AVVideoMaxKeyFrameIntervalKey] = config.videomaxKeyFrameInterval
+                inputSettings[AVVideoCompressionPropertiesKey] = videoCompresionSettings
+            } else {
+                inputSettings[AVVideoCompressionPropertiesKey] = [AVVideoAverageBitRateKey: targetVideoBitrate, AVVideoMaxKeyFrameIntervalKey: config.videomaxKeyFrameInterval]
+            }
         } else {
             inputSettings = createVideoSettingsWithBitrate(targetVideoBitrate,
                                                            maxKeyFrameInterval: config.videomaxKeyFrameInterval,
                                                            size: targetSize)
         }
+        
+#if DEBUG
+        if let conf = config.settings {
+            print("video input settings: \(conf)")
+        }
+#endif
+        
+#if DEBUG
+        print("video output settings: \(inputSettings)")
+#endif
 
         let videoSettings = inputSettings
         
