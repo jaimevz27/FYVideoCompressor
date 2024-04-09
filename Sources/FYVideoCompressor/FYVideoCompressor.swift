@@ -62,6 +62,33 @@ public class FYVideoCompressor {
         
     }
     
+    public enum VideoResolution: Equatable {
+        case sd
+        case hd
+        case fullHD
+        case quadHD
+        case ultraHD
+        case fullUltraHD
+        
+        var value: Double {
+            switch self {
+            case .sd:
+                return 480
+            case .hd:
+                return 720
+            case .fullHD:
+                return 1080
+            case .quadHD:
+                return 1440
+            case .ultraHD:
+                return 1440
+            case .fullUltraHD:
+                return 2160
+            }
+        }
+    }
+    
+    
     // Compression Encode Parameters
     public struct CompressionConfig {
         //Tag: video
@@ -260,7 +287,12 @@ public class FYVideoCompressor {
             targetVideoBitrate = Float(config.videoBitrate)
         }
         
-        let targetSize = calculateSizeWithScale(config.scale, originalSize: videoTrack.naturalSize)
+        //let targetSize = calculateSizeWithScale(config.scale, originalSize: videoTrack.naturalSize)
+        let targetSize = calculateSizeWithResolution(.fullHD, originalSize: videoTrack.naturalSize)
+        
+        #if DEBUG
+         print("targetSize es : \(targetSize)")
+        #endif
         
         var inputSettings = [String: Any]()
         
@@ -683,6 +715,36 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
         } else {
             let targetHeight = Int(scale.width * originalSize.height / originalSize.width)
             return CGSize(width: scale.width, height: CGFloat(targetHeight))
+        }
+    }
+    
+    func calculateSizeWithResolution(_ minimumRes: VideoResolution, originalSize: CGSize) -> CGSize {
+        
+        let originalMinResolution = min(originalSize.width, originalSize.height)
+        
+        #if DEBUG
+            print("originalMinResolution = \(originalMinResolution)")
+        #endif
+        
+        guard originalMinResolution >= minimumRes.value  else {
+            return originalSize
+        }
+        
+        #if DEBUG
+        print("originalMinResolution es >=  \(minimumRes.value)")
+        #endif
+        
+        if originalMinResolution == originalSize.height {
+            let targetWidth = Int(minimumRes.value * originalSize.width / originalSize.height)
+            #if DEBUG
+            print("targetWidth =  width: \(targetWidth) y height: \(minimumRes.value)")
+            #endif
+            return CGSize(width: CGFloat(targetWidth), height: minimumRes.value)
+        } else {
+            #if DEBUG
+            print("la resolucion minima es el width, mandamos el original")
+            #endif
+            return originalSize
         }
     }
     
