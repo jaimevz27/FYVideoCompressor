@@ -73,17 +73,17 @@ public class FYVideoCompressor {
         var value: Double {
             switch self {
             case .sd:
-                return 480
+                return 640
             case .hd:
-                return 720
+                return 1280
             case .fullHD:
-                return 1080
+                return 1920
             case .quadHD:
-                return 1440
+                return 2560
             case .ultraHD:
-                return 1440
+                return 3840
             case .fullUltraHD:
-                return 2160
+                return 7680
             }
         }
     }
@@ -276,13 +276,12 @@ public class FYVideoCompressor {
             return
         }
         
-#if DEBUG
+        #if DEBUG
         print("video codec type: \(videoCodecType(for: videoTrack))")
-#endif
+        #endif
         let targetVideoBitrate: Float
         if Float(config.videoBitrate) > videoTrack.estimatedDataRate {
-            let tempBitrate = videoTrack.estimatedDataRate/4
-            targetVideoBitrate = max(tempBitrate, Float(Self.minimumVideoBitrate))
+            targetVideoBitrate = videoTrack.estimatedDataRate
         } else {
             targetVideoBitrate = Float(config.videoBitrate)
         }
@@ -291,6 +290,7 @@ public class FYVideoCompressor {
         let targetSize = calculateSizeWithResolution(.fullHD, originalSize: videoTrack.naturalSize)
         
         #if DEBUG
+         print("naturalSize es : \(videoTrack.naturalSize)")
          print("targetSize es : \(targetSize)")
         #endif
         
@@ -362,6 +362,127 @@ public class FYVideoCompressor {
         print("🎬 Video ")
         print("ORIGINAL:")
         print("video size: \(url.sizePerMB())M")
+        print("bitrate: \(videoTrack.estimatedDataRate) b/s")
+        print("fps: \(videoTrack.nominalFrameRate)") //
+        print("scale size: \(videoTrack.naturalSize)")
+        
+        print("TARGET:")
+        print("video bitrate: \(targetVideoBitrate) b/s")
+        print("fps: \(config.fps)")
+        print("scale size: (\(targetSize))")
+        print("****************************************")
+#endif
+        
+        _compress(asset: asset,
+                  fileType: config.fileType,
+                  videoTrack,
+                  videoSettings,
+                  audioTrack,
+                  audioSettings,
+                  targetFPS: config.fps,
+                  outputPath: _outputPath,
+                  completion: completion)
+    }
+    
+    
+    /// Compress Video with config.
+    public func compressVideo(_ asset: AVAsset, config: CompressionConfig, frameReducer: VideoFrameReducer = ReduceFrameEvenlySpaced(), completion: @escaping (Result<URL, Error>) -> Void) {
+        self.videoFrameReducer = frameReducer
+        
+        //let asset = AVAsset(url: url)
+        
+        // setup
+        guard let videoTrack = asset.tracks(withMediaType: .video).first else {
+            completion(.failure(VideoCompressorError.noVideo))
+            return
+        }
+        
+        #if DEBUG
+        print("video codec type: \(videoCodecType(for: videoTrack))")
+        #endif
+        let targetVideoBitrate: Float
+        if Float(config.videoBitrate) > videoTrack.estimatedDataRate {
+            targetVideoBitrate = videoTrack.estimatedDataRate
+        } else {
+            targetVideoBitrate = Float(config.videoBitrate)
+        }
+        
+        //let targetSize = calculateSizeWithScale(config.scale, originalSize: videoTrack.naturalSize)
+        let targetSize = calculateSizeWithResolution(.fullHD, originalSize: videoTrack.naturalSize)
+        
+        #if DEBUG
+         print("naturalSize es : \(videoTrack.naturalSize)")
+         print("targetSize es : \(targetSize)")
+        #endif
+        
+        var inputSettings = [String: Any]()
+        
+        if let customConfig = config.settings {
+            inputSettings = customConfig
+            inputSettings[AVVideoWidthKey] = targetSize.width
+            inputSettings[AVVideoHeightKey] = targetSize.height
+            
+            if var videoCompresionSettings = inputSettings[AVVideoCompressionPropertiesKey] as? [String: Any] {
+                videoCompresionSettings[AVVideoAverageBitRateKey] = targetVideoBitrate
+                videoCompresionSettings[AVVideoMaxKeyFrameIntervalKey] = config.videomaxKeyFrameInterval
+                inputSettings[AVVideoCompressionPropertiesKey] = videoCompresionSettings
+            } else {
+                inputSettings[AVVideoCompressionPropertiesKey] = [AVVideoAverageBitRateKey: targetVideoBitrate, AVVideoMaxKeyFrameIntervalKey: config.videomaxKeyFrameInterval]
+            }
+        } else {
+            inputSettings = createVideoSettingsWithBitrate(targetVideoBitrate,
+                                                           maxKeyFrameInterval: config.videomaxKeyFrameInterval,
+                                                           size: targetSize)
+        }
+        
+#if DEBUG
+        if let conf = config.settings {
+            print("video input settings: \(conf)")
+        }
+#endif
+        
+#if DEBUG
+        print("video output settings: \(inputSettings)")
+#endif
+
+        let videoSettings = inputSettings
+        
+        var audioTrack: AVAssetTrack?
+        var audioSettings: [String: Any]?
+        
+        if let adTrack = asset.tracks(withMediaType: .audio).first {
+            audioTrack = adTrack
+            let targetAudioBitrate: Float
+            if Float(config.audioBitrate) < adTrack.estimatedDataRate {
+                targetAudioBitrate = Float(config.audioBitrate)
+            } else {
+                targetAudioBitrate = 64_000
+            }
+            
+            let targetSampleRate: Int
+            if config.audioSampleRate < 8000 {
+                targetSampleRate = 8000
+            } else if config.audioSampleRate > 192_000 {
+                targetSampleRate = 192_000
+            } else {
+                targetSampleRate = config.audioSampleRate
+            }
+            audioSettings = createAudioSettingsWithAudioTrack(adTrack, bitrate: targetAudioBitrate, sampleRate: targetSampleRate)
+        }
+        
+        var _outputPath: URL
+        if let outputPath = config.outputPath {
+            _outputPath = outputPath
+        } else {
+            _outputPath = FileManager.tempDirectory(with: "CompressedVideo")
+        }
+        
+#if DEBUG
+        print("************** Video info **************")
+        
+        print("🎬 Video ")
+        print("ORIGINAL:")
+        //print("video size: \(url.sizePerMB())M")
         print("bitrate: \(videoTrack.estimatedDataRate) b/s")
         print("fps: \(videoTrack.nominalFrameRate)") //
         print("scale size: \(videoTrack.naturalSize)")
@@ -542,7 +663,7 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
 #if DEBUG
         if let audioFormatDescs = audioTrack.formatDescriptions as? [CMFormatDescription], let formatDescription = audioFormatDescs.first {
             print("🔊 Audio")
-            print("ORINGIAL:")
+            print("ORIGINAL:")
             print("bitrate: \(audioTrack.estimatedDataRate)")
             if let streamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription) {
                 print("sampleRate: \(streamBasicDescription.pointee.mSampleRate)")
@@ -720,31 +841,35 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
     
     func calculateSizeWithResolution(_ minimumRes: VideoResolution, originalSize: CGSize) -> CGSize {
         
-        let originalMinResolution = min(originalSize.width, originalSize.height)
+        let originalMaxResolution = max(originalSize.width, originalSize.height)
         
         #if DEBUG
-            print("originalMinResolution = \(originalMinResolution)")
+        print("originalMaxResolution = \(originalMaxResolution)")
         #endif
         
-        guard originalMinResolution >= minimumRes.value  else {
+        guard originalMaxResolution >= minimumRes.value  else {
+            #if DEBUG
+            print("utilizamos tamaño original")
+            #endif
             return originalSize
         }
         
         #if DEBUG
-        print("originalMinResolution es >=  \(minimumRes.value)")
+        print("originalMaxResolution es >=  \(minimumRes.value)")
         #endif
         
-        if originalMinResolution == originalSize.height {
+        if originalMaxResolution == originalSize.height {
             let targetWidth = Int(minimumRes.value * originalSize.width / originalSize.height)
             #if DEBUG
             print("targetWidth =  width: \(targetWidth) y height: \(minimumRes.value)")
             #endif
             return CGSize(width: CGFloat(targetWidth), height: minimumRes.value)
         } else {
+            let targetHeight = Int(minimumRes.value * originalSize.height / originalSize.width)
             #if DEBUG
-            print("la resolucion minima es el width, mandamos el original")
+            print("targetHeight = width: \(minimumRes.value) y height: \(targetHeight)")
             #endif
-            return originalSize
+            return CGSize(width: minimumRes.value, height: CGFloat(targetHeight))
         }
     }
     
