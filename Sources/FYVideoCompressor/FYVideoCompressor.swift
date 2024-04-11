@@ -306,6 +306,9 @@ public class FYVideoCompressor {
             if var videoCompresionSettings = inputSettings[AVVideoCompressionPropertiesKey] as? [String: Any] {
                 videoCompresionSettings[AVVideoAverageBitRateKey] = targetVideoBitrate
                 videoCompresionSettings[AVVideoMaxKeyFrameIntervalKey] = config.videomaxKeyFrameInterval
+                
+                //NEW
+                videoCompresionSettings[AVVideoExpectedSourceFrameRateKey] = config.fps
                 inputSettings[AVVideoCompressionPropertiesKey] = videoCompresionSettings
             } else {
                 inputSettings[AVVideoCompressionPropertiesKey] = [AVVideoAverageBitRateKey: targetVideoBitrate, AVVideoMaxKeyFrameIntervalKey: config.videomaxKeyFrameInterval]
@@ -419,6 +422,9 @@ public class FYVideoCompressor {
             if var videoCompresionSettings = inputSettings[AVVideoCompressionPropertiesKey] as? [String: Any] {
                 videoCompresionSettings[AVVideoAverageBitRateKey] = targetVideoBitrate
                 videoCompresionSettings[AVVideoMaxKeyFrameIntervalKey] = config.videomaxKeyFrameInterval
+                
+                //NEW
+                videoCompresionSettings[AVVideoExpectedSourceFrameRateKey] = config.fps
                 inputSettings[AVVideoCompressionPropertiesKey] = videoCompresionSettings
             } else {
                 inputSettings[AVVideoCompressionPropertiesKey] = [AVVideoAverageBitRateKey: targetVideoBitrate, AVVideoMaxKeyFrameIntervalKey: config.videomaxKeyFrameInterval]
