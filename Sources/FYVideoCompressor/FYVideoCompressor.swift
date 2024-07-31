@@ -547,6 +547,14 @@ public class FYVideoCompressor {
             // store urls for deleting
             compressVideoPaths.append(outputPath)
             
+            let duration = asset.duration
+            let durationTime = CMTimeGetSeconds(duration)
+            
+            #if DEBUG
+            print("duration \(duration)")
+            print("durationTime \(durationTime)")
+            #endif
+            
             let reader = try AVAssetReader(asset: asset)
             let writer = try AVAssetWriter(url: outputPath, fileType: fileType)
             self.reader = reader
@@ -598,7 +606,7 @@ public class FYVideoCompressor {
             
             outputVideoDataByReducingFPS(videoInput: videoInput,
                                          videoOutput: videoOutput,
-                                         frameIndexArr: reduceFPS ? frameIndexArr : []) {
+                                         frameIndexArr: reduceFPS ? frameIndexArr : [], duration: durationTime) {
                 self.group.leave()
             }
             
@@ -691,6 +699,7 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
     private func outputVideoDataByReducingFPS(videoInput: AVAssetWriterInput,
                                               videoOutput: AVAssetReaderTrackOutput,
                                               frameIndexArr: [Int],
+                                              duration: Float64,
                                               completion: @escaping(() -> Void)) {
         var counter = 0
         var index = 0
@@ -700,6 +709,13 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
                 if let buffer = videoOutput.copyNextSampleBuffer() {
                     if frameIndexArr.isEmpty {
                         videoInput.append(buffer)
+                
+                        let timeStamp = CMSampleBufferGetPresentationTimeStamp(buffer)
+                        let timeSecond = CMTimeGetSeconds(timeStamp)
+                        let per = timeSecond / duration
+                        #if DEBUG
+                        print("Duration 1 --- \(per)")
+                        #endif
                     } else { // reduce FPS
                         // append first frame
                         if index < frameIndexArr.count {
@@ -707,6 +723,13 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
                             if counter == frameIndex {
                                 index += 1
                                 videoInput.append(buffer)
+                                
+                                let timeStamp = CMSampleBufferGetPresentationTimeStamp(buffer)
+                                let timeSecond = CMTimeGetSeconds(timeStamp)
+                                let per = timeSecond / duration
+                                #if DEBUG
+                                print("Duration 2 --- \(per)")
+                                #endif
                             }
                             counter += 1
                         } else {
