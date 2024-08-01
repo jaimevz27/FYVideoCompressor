@@ -970,10 +970,6 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
 
     static func reportProgress(progress: Float64) {
         // Post a notification or call a delegate method to report the progress
-        NotificationCenter.default.post(name: .progressUpdated, object: nil, userInfo: ["progress": progress])
+        NotificationCenter.default.post(name: Notification.Name(rawValue: "FYVideoCompressorProgressUpdated"), object: nil, userInfo: ["progress": progress])
     }
-}
-
-extension Notification.Name {
-    static let progressUpdated = Notification.Name("progressUpdated")
 }
