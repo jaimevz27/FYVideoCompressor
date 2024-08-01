@@ -181,6 +181,10 @@ public class FYVideoCompressor {
     
     public var videoFrameReducer: VideoFrameReducer!
     
+    @objc dynamic var progress: Float64 = 0.0
+    
+    private var timer: Timer?
+    
     public init() { }
     
     /// Youtube suggests 1Mbps for 24 frame rate 360p video, 1Mbps = 1000_000bps.
@@ -704,6 +708,8 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
         var counter = 0
         var index = 0
         
+        startProgress()
+        
         videoInput.requestMediaDataWhenReady(on: videoCompressQueue) {
             while videoInput.isReadyForMoreMediaData {
                 if let buffer = videoOutput.copyNextSampleBuffer() {
@@ -716,6 +722,7 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
                         #if DEBUG
                         print("Duration 1 --- \(per)")
                         #endif
+                        self.progress = per
                     } else { // reduce FPS
                         // append first frame
                         if index < frameIndexArr.count {
@@ -730,6 +737,7 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
                                 #if DEBUG
                                 print("Duration 2 --- \(per)")
                                 #endif
+                                self.progress = per
                             }
                             counter += 1
                         } else {
@@ -941,4 +949,31 @@ AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate,
             return true // Assume keyframe if attachment is not present
         }
     }
+    
+    
+    // MARK: - tracking Progress
+    func startProgress() {
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else { return }
+            FYVideoCompressor.reportProgress(progress: self.progress)
+            if self.progress >= 1.0 {
+                timer.invalidate()
+                self.progress = 1.0
+            }
+        }
+    }
+
+    func stopProgress() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    static func reportProgress(progress: Float64) {
+        // Post a notification or call a delegate method to report the progress
+        NotificationCenter.default.post(name: .progressUpdated, object: nil, userInfo: ["progress": progress])
+    }
+}
+
+extension Notification.Name {
+    static let progressUpdated = Notification.Name("progressUpdated")
 }
